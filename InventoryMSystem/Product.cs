@@ -29,5 +29,11 @@ namespace Inventory
             this.descript = pDescript;
             this.state = "new";
         }
+        public string toString()
+        {
+            string strR = string.Empty;
+            strR = string.Format("ID = {0}  Name = {1} category = {2}", this.productID, this.productName, this.descript);
+            return strR;
+        }
     }
 }

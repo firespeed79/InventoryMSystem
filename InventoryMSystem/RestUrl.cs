@@ -21,6 +21,7 @@ namespace Inventory
         public static string getAllOrders = RestAddress + "Order/getAllOrders";
         public static string addOrder = RestAddress + "Order/addOrder";
         public static string deleteOrder = RestAddress + "Order/deleteOrder";
+        public static string deleteOrders = RestAddress + "Order/deleteOrders";
 
         public static string allProductName = RestAddress + "ProductName/getAllProductName";
 

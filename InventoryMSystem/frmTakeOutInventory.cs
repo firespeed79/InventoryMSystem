@@ -89,7 +89,7 @@ namespace InventoryMSystem
             {
                 dt = (DataTable)dgvTakenOutP.DataSource;
             }
-
+            dt.Rows.Clear();
             //DataTable dt = ctlTakeOutInventory.GetOrderTable();
             //this.dgvTakenOutP.DataSource = dt;
 
@@ -182,6 +182,12 @@ namespace InventoryMSystem
                 dtTemp.Columns.Add("备注信息", typeof(string));
                 this.dgvDetailProductsInfo.DataSource = dtTemp;
             }
+            else
+            {
+                dtTemp = (DataTable)this.dgvDetailProductsInfo.DataSource;
+            }
+            dtTemp.Rows.Clear();
+
             this.dgvDetailProductsInfo.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.AllCells);
             int headerW = this.dgvDetailProductsInfo.RowHeadersWidth;
             int columnsW = 0;
@@ -210,7 +216,7 @@ namespace InventoryMSystem
         }
         void frmTakeOutInventory_FormClosing(object sender, FormClosingEventArgs e)
         {
-            this.closeSerialPort();
+            //this.closeSerialPort();
         }
         void UpdateEpcList(object o)
         {
@@ -344,6 +350,9 @@ namespace InventoryMSystem
                 Product u2 = fastJSON.JSON.Instance.ToObject<Product>(strProduct);
                 if (u2 != null && u2.state == "ok")
                 {
+                    Debug.WriteLine(
+                        string.Format("frmTakeOutInventory.helper_RequestCompleted_getProduct  ->  = {0}"
+                        , u2.toString()));
                     //将具体的产品信息添加到详细列表里面
                     if (this.dgvDetailProductsInfo.DataSource != null)
                     {
@@ -379,45 +388,48 @@ namespace InventoryMSystem
                                         break;
                                     }
                                 }
-                                try
+                                if (drOrderProduct != null)
                                 {
-                                    quantityOrdered = int.Parse(drOrderProduct[1].ToString());
-                                    quantityNow = int.Parse(drOrderProduct[2].ToString());
-                                }
-                                catch (System.Exception ex)
-                                {
-                                    MessageBox.Show("程序异常：" + ex.Message);
-                                    return;
-                                }
-                            }
-                            if (quantityNow > -1 && quantityOrdered > -1)
-                            {
-                                if (quantityNow >= quantityOrdered)
-                                {
-                                    bEnough = true;
-                                }
-                            }
-                            if (!bEnough)
-                            {
-                                if (null != drOrderProduct)
-                                {
-                                    drOrderProduct[2] = (++quantityNow).ToString();
-                                }
-                                dt.Rows.Add(new object[] {
+                                    try
+                                    {
+                                        quantityOrdered = int.Parse(drOrderProduct[1].ToString());
+                                        quantityNow = int.Parse(drOrderProduct[2].ToString());
+                                    }
+                                    catch (System.Exception ex)
+                                    {
+                                        MessageBox.Show("程序异常：" + ex.Message);
+                                        return;
+                                    }
+                                    if (quantityNow > -1 && quantityOrdered > -1)
+                                    {
+                                        if (quantityNow >= quantityOrdered)
+                                        {
+                                            bEnough = true;
+                                        }
+                                    }
+                                    if (!bEnough)
+                                    {
+                                        if (null != drOrderProduct)
+                                        {
+                                            drOrderProduct[2] = (++quantityNow).ToString();
+                                        }
+                                        dt.Rows.Add(new object[] {
                                     u2.productID,
                                     u2.productName,
                                     u2.produceDate,
                                     u2.productCategory,
                                     u2.descript
-                                });
+                                    });
 
-                                if (this.CheckAllOrderEnough())
-                                {
-                                    this.btnStartCheck.Enabled = true;
+                                        if (this.CheckAllOrderEnough())
+                                        {
+                                            this.btnStartCheck.Enabled = true;
+                                        }
+                                    }
                                 }
+
+
                             }
-
-
                         }
                     }
                 }
@@ -498,19 +510,95 @@ namespace InventoryMSystem
 
         private void btnStartCheck_Click(object sender, EventArgs e)
         {
-            this.closeSerialPort();
+            this.__timer.Enabled = false;
+            this.bGettingTag = false;
+            this.btnGetP.Text = "扫描";
+            this.btnStartCheck.Enabled = false;
+            //this.closeSerialPort();
+            List<Product> list = new List<Product>();
+
             DataTable dt = (DataTable)this.dgvDetailProductsInfo.DataSource;
             if (dt != null)
             {
                 foreach (DataRow dr in dt.Rows)
                 {
                     string productID = dr[0].ToString();
-                    this.ctlTakeOutInventory.InsertProductInfoIntoOutInventory(productID, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
-                    this.ctlTakeOutInventory.ChangeProductStatusforOutInventory(productID);
+                    Product p1 = new Product(productID, string.Empty, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), string.Empty, string.Empty);
+                    list.Add(p1);
+                    //this.ctlTakeOutInventory.InsertProductInfoIntoOutInventory(productID, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                    //this.ctlTakeOutInventory.ChangeProductStatusforOutInventory(productID);
                 }
             }
-            this.ctlTakeOutInventory.DeleteOrderInfo();
-            this.frmTakeOutInventory_Shown(null, null);
+            string jsonString = fastJSON.JSON.Instance.ToJSON(list);
+            HttpWebConnect helper = new HttpWebConnect();
+            helper.RequestCompleted += new deleGetRequestObject(helper_RequestCompleted_deleteProductToStorage);
+            string url = RestUrl.deleteProductFromStorage;
+            helper.TryPostData(url, jsonString);
+
+
+            DataTable dtOrder = (DataTable)this.dgvTakenOutP.DataSource;
+            List<Order> listOrder = new List<Order>();
+            if (dtOrder != null)
+            {
+                foreach (DataRow dr in dtOrder.Rows)
+                {
+                    string Name = dr[0].ToString();
+                    Order o = new Order(Name, 1);
+                    listOrder.Add(o);
+                }
+
+                jsonString = fastJSON.JSON.Instance.ToJSON(listOrder);
+                Debug.WriteLine(
+                	string.Format("frmTakeOutInventory.btnStartCheck_Click  -> orders = {0}"
+                	, jsonString));
+                helper = new HttpWebConnect();
+                helper.RequestCompleted += new deleGetRequestObject(helper_RequestCompleted_deleteOrders);
+                url = RestUrl.deleteOrders;
+                helper.TryPostData(url, jsonString);
+            }
+
+
+            //this.ctlTakeOutInventory.DeleteOrderInfo();
+            //this.frmTakeOutInventory_Shown(null, null);
+        }
+        void helper_RequestCompleted_deleteOrders(object o)
+        {
+            string strOrders = (string)o;
+            Debug.WriteLine(
+            	string.Format("frmTakeOutInventory.helper_RequestCompleted_deleteOrders  ->  = {0}"
+            	, strOrders));
+            object olist = fastJSON.JSON.Instance.ToObjectList(strOrders, typeof(List<Order>), typeof(Order));
+            foreach (Order c in (List<Order>)olist)
+            {
+                if (c.state != "ok")
+                {
+                    MessageBox.Show(string.Format("删除名称为 {0} 的订单出现异常！", c.productName),"提示");
+                    return;
+                }
+            }
+            deleControlInvoke dele = delegate(object oNull)
+            {
+                this.refreshDGVOrder();
+                this.refreshDGVProductDetail();
+            };
+            this.Invoke(dele, o);
+        }
+        void helper_RequestCompleted_deleteProductToStorage(object o)
+        {
+            string strProducts = (string)o;
+            Debug.WriteLine(
+            	string.Format("frmTakeOutInventory.helper_RequestCompleted_deleteProductToStorage  ->  = {0}"
+            	, strProducts));
+            object olist = fastJSON.JSON.Instance.ToObjectList(strProducts, typeof(List<Product>), typeof(Product));
+            foreach (Product c in (List<Product>)olist)
+            {
+                if (c.state != "ok")
+                {
+                    MessageBox.Show(string.Format("编号为 {0} 的产品出库出现异常！", c.productID), "提示");
+                    return;
+                }
+                Debug.WriteLine(c.productID + "      " + c.productName + "     " + c.state);
+            }
         }
     }
 }
