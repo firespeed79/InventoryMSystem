@@ -82,7 +82,7 @@ namespace InventoryMSystem
         {
             this.Close();
         }
-
+        //盘盈
         void refreshInventoryMore()
         {
             //string ids = string.Empty;

@@ -8,6 +8,8 @@ namespace Inventory
     {
         public static string 扫描入库 = "inventory_input";
         public static string 扫描出库 = "inventory_output";
+        public static string 盘点 = "inventory_pandian";
+        
     }
     public class tagID
     {
